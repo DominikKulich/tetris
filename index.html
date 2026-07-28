@@ -23,7 +23,7 @@
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{
-    height:100%;margin:0;padding:0;
+    height:100%;margin:0;padding:0;overflow:hidden;
     background:var(--bg);
     color:var(--text);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -32,16 +32,22 @@
     -webkit-user-select:none;user-select:none;
   }
   body{
-    background:
+    background-color:#0b0f1a;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='150'%3E%3Ctext x='-10' y='105' transform='rotate(-22 -10 105)' font-family='system-ui,sans-serif' font-size='16' font-weight='700' fill='%23a8c8ff' fill-opacity='0.075'%3Ewww.dominikkulich.cz%3C/text%3E%3C/svg%3E"),
       radial-gradient(120% 60% at 50% 0%, #16233f 0%, #0b0f1a 60%);
+    background-repeat:repeat,no-repeat;
   }
   #app{
-    position:relative;
+    position:fixed;inset:0;
     display:flex;flex-direction:column;
-    height:100dvh;height:100vh;
+    height:100vh;
+    height:100dvh;
+    height:var(--vh,100dvh);
     max-width:520px;margin:0 auto;
-    padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-    gap:8px;
+    padding:6px 10px calc(6px + env(safe-area-inset-bottom));
+    gap:6px;
+    overflow:hidden;
   }
 
   /* ---------- horní panel ---------- */
@@ -64,7 +70,7 @@
     text-transform:uppercase;font-weight:700;
   }
   .stat .val{
-    font-size:1.5rem;font-weight:800;line-height:1.15;
+    font-size:clamp(1.15rem,5vw,1.5rem);font-weight:800;line-height:1.15;
     font-variant-numeric:tabular-nums;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
@@ -80,7 +86,7 @@
     font-size:.72rem;letter-spacing:.09em;color:var(--dim);
     text-transform:uppercase;font-weight:700;margin-bottom:2px;
   }
-  #next{display:block;width:62px;height:44px}
+  #next{display:block;width:58px;height:clamp(32px,4.8vh,42px)}
 
   /* ---------- hrací plocha ---------- */
   #playfield{
@@ -98,8 +104,8 @@
   }
 
   /* ---------- ovládání ---------- */
-  .controls{display:flex;flex-direction:column;gap:8px;flex:0 0 auto}
-  .row{display:grid;gap:8px}
+  .controls{display:flex;flex-direction:column;gap:6px;flex:0 0 auto}
+  .row{display:grid;gap:6px}
   .row.three{grid-template-columns:1fr 1fr 1fr}
   .row.two{grid-template-columns:1fr 1fr}
   button{
@@ -114,14 +120,16 @@
   }
   button:active,button.down{transform:translateY(2px);filter:brightness(1.45)}
   .big{
-    height:clamp(58px,9.5vh,78px);
-    font-size:clamp(1.5rem,6vw,2rem);
+    height:clamp(52px,8.6vh,74px);
+    font-size:clamp(1.4rem,5.5vw,1.9rem);
   }
   .big .sub{font-size:.8rem;letter-spacing:.06em;color:var(--dim);font-weight:700}
   .rot{border-color:#3d7d72;background:linear-gradient(180deg,#1f4a45,#16332f);color:var(--accent)}
   .drop{border-color:#6b5a2a;background:linear-gradient(180deg,#4a3f1c,#2e2712);color:var(--accent2)}
   .small{
-    height:44px;font-size:1rem;font-weight:700;color:var(--dim);
+    height:clamp(38px,5.6vh,46px);
+    font-size:clamp(.9rem,3.6vw,1rem);
+    font-weight:700;color:var(--dim);
     border-radius:12px;
   }
 
@@ -130,8 +138,8 @@
     position:absolute;inset:0;
     background:rgba(7,10,18,.92);
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:14px;padding:18px;text-align:center;
-    z-index:5;
+    gap:14px;padding:16px 18px 48px;text-align:center;
+    z-index:5;overflow-y:auto;
   }
   .overlay.hidden{display:none}
   .title{
@@ -326,7 +334,15 @@ function beep(freq, dur, type, vol){
 function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 
 /* ================= rozměry ================= */
+/* skutečná viditelná výška (mobilní prohlížeče mají lištu, která mění výšku) */
+function setViewportHeight(){
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty("--vh", h + "px");
+}
+
 function resize(){
+  setViewportHeight();
   const field = document.getElementById("playfield");
   const availW = field.clientWidth  - 10;
   const availH = field.clientHeight - 10;
@@ -351,7 +367,13 @@ function resize(){
   drawNext();
 }
 window.addEventListener("resize", resize);
-window.addEventListener("orientationchange", ()=>setTimeout(resize,250));
+window.addEventListener("orientationchange", ()=>{ setTimeout(resize,150); setTimeout(resize,500); });
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", resize);
+  window.visualViewport.addEventListener("scroll", resize);
+}
+window.addEventListener("pageshow", ()=>setTimeout(resize,50));
+window.addEventListener("load", ()=>{ resize(); setTimeout(resize,300); });
 
 /* ================= herní logika ================= */
 function emptyBoard(){

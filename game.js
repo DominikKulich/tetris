@@ -80,7 +80,15 @@ function beep(freq, dur, type, vol){
 function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 
 /* ================= rozměry ================= */
+/* skutečná viditelná výška (mobilní prohlížeče mají lištu, která mění výšku) */
+function setViewportHeight(){
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty("--vh", h + "px");
+}
+
 function resize(){
+  setViewportHeight();
   const field = document.getElementById("playfield");
   const availW = field.clientWidth  - 10;
   const availH = field.clientHeight - 10;
@@ -105,7 +113,13 @@ function resize(){
   drawNext();
 }
 window.addEventListener("resize", resize);
-window.addEventListener("orientationchange", ()=>setTimeout(resize,250));
+window.addEventListener("orientationchange", ()=>{ setTimeout(resize,150); setTimeout(resize,500); });
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", resize);
+  window.visualViewport.addEventListener("scroll", resize);
+}
+window.addEventListener("pageshow", ()=>setTimeout(resize,50));
+window.addEventListener("load", ()=>{ resize(); setTimeout(resize,300); });
 
 /* ================= herní logika ================= */
 function emptyBoard(){
