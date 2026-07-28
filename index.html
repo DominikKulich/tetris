@@ -227,6 +227,7 @@
       <div><b>↻</b> — otočení kostky</div>
       <div><b>▼ DOLŮ</b> — rychlejší pád (drž prst)</div>
     </div>
+    <button class="cta" id="btnContinue" style="display:none">▶ POKRAČOVAT VE HŘE</button>
     <button class="cta" id="btnStart">▶ HRÁT</button>
     <div class="credit">Vytvořil <a href="https://www.dominikkulich.cz" target="_blank" rel="noopener">www.dominikkulich.cz</a></div>
   </div>
@@ -314,6 +315,56 @@ function load(k, d){
   catch(e){ return d; }
 }
 function save(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+function del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+/* ---- uložení rozehrané hry (mobil stránku po přepnutí často znovu načte) ---- */
+const SAVE_KEY = "tetris_save";
+
+function saveGame(){
+  if(!piece || !board) return;
+  if(state !== "play" && state !== "pause" && state !== "clearing") return;
+  save(SAVE_KEY, JSON.stringify({
+    v:1, board:board, nextKey:nextKey, bag:bag,
+    piece:{ key:piece.key, m:piece.m, x:piece.x, y:piece.y },
+    score:score, lines:lines, level:level
+  }));
+}
+
+function loadGame(){
+  try{
+    const raw = load(SAVE_KEY, null);
+    if(!raw) return null;
+    const d = JSON.parse(raw);
+    if(!d || d.v !== 1) return null;
+    if(!Array.isArray(d.board) || d.board.length !== ROWS) return null;
+    for(let y=0;y<ROWS;y++){
+      if(!Array.isArray(d.board[y]) || d.board[y].length !== COLS) return null;
+      for(let x=0;x<COLS;x++){
+        const c = d.board[y][x];
+        if(c !== null && !COLORS[c]) return null;
+      }
+    }
+    if(!d.piece || !SHAPES[d.piece.key] || !Array.isArray(d.piece.m)) return null;
+    if(!SHAPES[d.nextKey]) return null;
+    return d;
+  }catch(e){ return null; }
+}
+
+function resumeGame(d){
+  board = d.board.map(r => r.slice());
+  piece = { key:d.piece.key, m:d.piece.m.map(r => r.slice()), x:d.piece.x|0, y:d.piece.y|0 };
+  nextKey = d.nextKey;
+  bag = Array.isArray(d.bag) ? d.bag.filter(k => SHAPES[k]) : [];
+  score = d.score|0; lines = d.lines|0; level = Math.max(1, d.level|0);
+  clearRows = []; dropTimer = 0; lockTimer = 0; lockResets = 0; grounded = false;
+  lastTime = 0;
+  state = "play";
+  updateHud(); drawNext();
+  ovStart.classList.add("hidden");
+  ovPause.classList.add("hidden");
+  ovOver.classList.add("hidden");
+  resize();
+}
 
 best = parseInt(load("tetris_best","0"),10) || 0;
 soundOn = load("tetris_sound","1") === "1";
@@ -431,7 +482,8 @@ function spawn(){
   nextKey = takeKey();
   lockTimer = 0; lockResets = 0; grounded = false;
   drawNext();
-  if(collides(piece, piece.x, piece.y)) gameOver();
+  if(collides(piece, piece.x, piece.y)){ gameOver(); return; }
+  saveGame();
 }
 
 /* po povedeném pohybu se dosedávací lhůta natáhne, aby šlo kostku
@@ -536,6 +588,7 @@ function updateHud(){
 }
 
 function newGame(){
+  del(SAVE_KEY);
   board = emptyBoard();
   bag = []; refillBag();
   score = 0; lines = 0; level = 1;
@@ -552,6 +605,7 @@ function newGame(){
 
 function gameOver(){
   state = "over";
+  del(SAVE_KEY);
   beep(300,.18,"sawtooth",.05);
   setTimeout(()=>beep(200,.25,"sawtooth",.05),160);
   buzz([80,60,80]);
@@ -567,6 +621,7 @@ function gameOver(){
 function togglePause(){
   if(state === "play" || state === "clearing"){
     state = "pause";
+    saveGame();
     ovPause.classList.remove("hidden");
   }else if(state === "pause"){
     state = "play";
@@ -816,10 +871,15 @@ document.addEventListener("keydown", (e)=>{
   }
 });
 
-/* pauza při přepnutí do jiné aplikace */
+/* pauza + uložení při přepnutí do jiné aplikace */
 document.addEventListener("visibilitychange", ()=>{
-  if(document.hidden && state === "play") togglePause();
+  if(document.hidden){
+    if(state === "play" || state === "clearing") togglePause();
+    else saveGame();
+  }
 });
+window.addEventListener("pagehide", saveGame);
+window.addEventListener("blur", saveGame);
 
 /* zabránit posunu stránky prstem */
 document.addEventListener("touchmove", e=>{ e.preventDefault(); }, {passive:false});
@@ -828,6 +888,23 @@ document.addEventListener("touchmove", e=>{ e.preventDefault(); }, {passive:fals
 board = emptyBoard();
 nextKey = null;
 updateHud();
+
+const btnStart = document.getElementById("btnStart");
+const btnContinue = document.getElementById("btnContinue");
+const saved = loadGame();
+
+if(saved){
+  // nabídnout návrat do rozehrané hry
+  btnContinue.style.display = "";
+  btnContinue.addEventListener("click", ()=>resumeGame(saved));
+  btnStart.textContent = "↺ Začít novou hru";
+  btnStart.style.height = "58px";
+  btnStart.style.fontSize = "1.15rem";
+  btnStart.style.background = "linear-gradient(180deg,#33405f,#212c46)";
+  btnStart.style.borderColor = "#40507a";
+  btnStart.style.color = "#dbe4fb";
+}
+
 resize();
 setTimeout(resize, 120);
 

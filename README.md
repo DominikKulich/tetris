@@ -36,6 +36,8 @@ Na počítači fungují i šipky, mezerník (rychlý pád) a klávesa P (pauza).
 - světlý „duch" ukazuje, kam kostka dopadne
 - velká tlačítka, vysoký kontrast, žádné náhodné zavření hry
 - hra se sama pozastaví, když se telefon přepne do jiné aplikace
+- rozehraná hra se ukládá — po návratu na web nabídne **Pokračovat ve hře**
+- po dosednutí kostky je ještě 0,9 s na doladění pozice (zasunutí pod převis)
 
 Chceš-li hru ještě zpomalit, otevři `index.html` a v části `function dropInterval`
 zvyš číslo `1150` (např. na `1600`).
