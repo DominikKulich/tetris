@@ -26,10 +26,15 @@ function dropInterval(level){
   return Math.max(300, 1150 - (level - 1) * 80);
 }
 
+/* doba, po kterou lze kostkou po dosednutí ještě hýbat (zasunutí pod převis) */
+const LOCK_DELAY = 900;
+const MAX_LOCK_RESETS = 15;
+
 /* ================= stav ================= */
 let board, piece, nextKey, score, lines, level, best;
 let state = "start";              // start | play | pause | over | clearing
 let dropTimer = 0, lastTime = 0;
+let lockTimer = 0, lockResets = 0, grounded = false;
 let clearRows = [], clearTimer = 0;
 const CLEAR_MS = 260;
 let bag = [];
@@ -170,14 +175,25 @@ function rotateM(m){
 function spawn(){
   piece = makePiece(nextKey);
   nextKey = takeKey();
+  lockTimer = 0; lockResets = 0; grounded = false;
   drawNext();
   if(collides(piece, piece.x, piece.y)) gameOver();
+}
+
+/* po povedeném pohybu se dosedávací lhůta natáhne, aby šlo kostku
+   ještě zasunout do mezery pod převisem */
+function resetLock(){
+  if(grounded && lockResets < MAX_LOCK_RESETS){
+    lockTimer = 0;
+    lockResets++;
+  }
 }
 
 function move(dx){
   if(state !== "play") return;
   if(!collides(piece, piece.x + dx, piece.y)){
     piece.x += dx;
+    resetLock();
     beep(220, .04, "square", .035);
     draw();
   }
@@ -190,6 +206,7 @@ function rotate(){
   for(let i=0;i<kicks.length;i++){
     if(!collides(piece, piece.x + kicks[i], piece.y, nm)){
       piece.m = nm; piece.x += kicks[i];
+      resetLock();
       beep(420, .05, "square", .04);
       draw();
       return;
@@ -200,10 +217,10 @@ function rotate(){
 function softDrop(){
   if(state !== "play") return;
   if(!collides(piece, piece.x, piece.y + 1)){
-    piece.y++; score += 1; updateHud(); draw();
-  }else{
-    lockPiece();
+    piece.y++; score += 1; dropTimer = 0; updateHud(); draw();
   }
+  /* na dně se kostka nezamkne hned – lhůta LOCK_DELAY dá čas
+     ještě s ní pohnout do stran */
 }
 
 function lockPiece(){
@@ -395,10 +412,17 @@ function draw(){
           if(piece.m[y][x] && gy+y >= 0)
             drawCell(bctx,(piece.x+x)*CELL,(gy+y)*CELL,CELL,COLORS[piece.key],"ghost");
     }
+    // dosedlá kostka jemně bliká = ještě s ní jde hýbat
+    bctx.save();
+    if(state === "play" && grounded){
+      const p = Math.min(1, lockTimer / LOCK_DELAY);
+      bctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.cos(p * Math.PI * 2.5));
+    }
     for(let y=0;y<piece.m.length;y++)
       for(let x=0;x<piece.m[y].length;x++)
         if(piece.m[y][x] && piece.y+y >= 0)
           drawCell(bctx,(piece.x+x)*CELL,(piece.y+y)*CELL,CELL,COLORS[piece.key]);
+    bctx.restore();
   }
 }
 
@@ -429,13 +453,27 @@ function loop(t){
   if(dt > 500) dt = 500;
 
   if(state === "play"){
-    dropTimer += dt;
-    const iv = dropInterval(level);
-    if(dropTimer >= iv){
+    const wasGrounded = grounded;
+    grounded = collides(piece, piece.x, piece.y + 1);
+
+    if(grounded){
+      if(!wasGrounded){ lockTimer = 0; }
+      lockTimer += dt;
       dropTimer = 0;
-      if(!collides(piece, piece.x, piece.y+1)){ piece.y++; }
-      else { lockPiece(); }
       draw();
+      if(lockTimer >= LOCK_DELAY){
+        lockTimer = 0; grounded = false;
+        lockPiece();
+        draw();
+      }
+    }else{
+      lockTimer = 0;
+      dropTimer += dt;
+      if(dropTimer >= dropInterval(level)){
+        dropTimer = 0;
+        piece.y++;
+        draw();
+      }
     }
   }else if(state === "clearing"){
     clearTimer += dt;
